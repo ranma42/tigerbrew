@@ -13,7 +13,10 @@ class Openssl < Formula
   end
 
   option :universal
+  option "without-asm", "Do not use assembly optimized routines"
   option "without-test", "Skip build-time tests (not recommended)"
+
+  depends_on :ld64
 
   depends_on "makedepend" => :build
   depends_on "curl-ca-bundle" if MacOS.version < :snow_leopard
@@ -22,6 +25,8 @@ class Openssl < Formula
     url "https://trac.macports.org/export/144472/trunk/dports/devel/openssl/files/x86_64-asm-on-i386.patch"
     sha256 "98ffb308aa04c14db9c21769f1c5ff09d63eb85ce9afdf002598823c45edef6d"
   end
+
+  patch :DATA if MacOS.version == :tiger
   
   def arch_args
     {
@@ -42,7 +47,7 @@ class Openssl < Formula
       enable-cms
     ]
     
-    args << "no-asm" if MacOS.version == :tiger
+    args << "no-asm" if build.without?("asm")
 
     args
   end
@@ -171,3 +176,47 @@ class Openssl < Formula
     end
   end
 end
+
+__END__
+--- a/crypto/perlasm/x86gas.pl	2017-01-26 14:22:03.000000000 +0100
++++ b/crypto/perlasm/x86gas.pl	2017-04-11 00:33:23.000000000 +0200
+@@ -160,7 +160,7 @@
+     }
+     if (grep {/\b${nmdecor}OPENSSL_ia32cap_P\b/i} @out) {
+ 	my $tmp=".comm\t${nmdecor}OPENSSL_ia32cap_P,16";
+-	if ($::macosx)	{ push (@out,"$tmp,2\n"); }
++	if ($::macosx)	{ push (@out,"$tmp\n"); }
+ 	elsif ($::elf)	{ push (@out,"$tmp,4\n"); }
+ 	else		{ push (@out,"$tmp\n"); }
+     }
+--- a/crypto/x86_64cpuid.pl	2017-01-26 14:22:04.000000000 +0100
++++ b/crypto/x86_64cpuid.pl	2017-04-11 16:23:42.000000000 +0200
+@@ -24,7 +24,7 @@
+ 	call	OPENSSL_cpuid_setup
+ 
+ .hidden	OPENSSL_ia32cap_P
+-.comm	OPENSSL_ia32cap_P,16,4
++.comm	OPENSSL_ia32cap_P,16
+ 
+ .text
+ 
+--- a/crypto/ec/asm/ecp_nistz256-x86_64.pl	2017-01-26 14:22:03.000000000 +0100
++++ b/crypto/ec/asm/ecp_nistz256-x86_64.pl	2017-04-12 00:20:44.000000000 +0200
+@@ -88,7 +88,7 @@
+ }
+ 
+ $code.=<<___;
+-.text
++.const
+ .extern	OPENSSL_ia32cap_P
+ 
+ # The polynomial
+@@ -108,6 +108,8 @@
+ .long 3,3,3,3,3,3,3,3
+ .LONE_mont:
+ .quad 0x0000000000000001, 0xffffffff00000000, 0xffffffffffffffff, 0x00000000fffffffe
++
++.text
+ ___
+ 
+ {
